@@ -56,5 +56,3 @@ def test_wh():
             "code": "error",
             "message": "order failed"
         }
-
-app.run()
