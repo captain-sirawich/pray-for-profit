@@ -2,6 +2,7 @@ import json, config
 from flask import Flask, request
 from binance.client import Client
 from binance.enums import *
+import os
 
 app = Flask(__name__)
 
@@ -27,7 +28,10 @@ def hello_world():
 
 @app.route("/test1")
 def test1():
-    return "<p>TEST1</p>"
+    return "<p>TEST1 Duhh</p>"
+@app.route("/test2")
+def test2():
+    return "<p>"+config.API_KEY+"</p>"
 
 @app.route("/webhook", methods=['POST'])
 def test_wh():
@@ -56,5 +60,3 @@ def test_wh():
             "code": "error",
             "message": "order failed"
         }
-
-app.run()
