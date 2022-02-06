@@ -30,7 +30,7 @@ def hello_world():
 def test1():
     return "<p>TEST1</p>"
 @app.route("/test2")
-def test1():
+def test2():
     key = os.getenv("HRK_KEY")
     print(key)
     return "<p>What</p>"
