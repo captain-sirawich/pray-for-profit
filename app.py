@@ -31,8 +31,7 @@ def test1():
     return "<p>TEST1</p>"
 @app.route("/test2")
 def test2():
-    key = os.getenv("HRK_KEY")
-    return "<p>"+key+"</p>"
+    return "<p>"+config.API_KEY+"</p>"
 
 @app.route("/webhook", methods=['POST'])
 def test_wh():
