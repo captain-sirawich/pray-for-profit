@@ -32,7 +32,8 @@ def test1():
 @app.route("/test2")
 def test1():
     key = os.getenv("HRK_KEY")
-    return "<p>" + key +"</p>"
+    print(key)
+    return "<p>What</p>"
 
 @app.route("/webhook", methods=['POST'])
 def test_wh():
