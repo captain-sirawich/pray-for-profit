@@ -1,4 +1,6 @@
+import os
+
 WEBHOOK_PASSPHRASE = "qwer1234"
 
-API_KEY = ENV['HRK_KEY']
-API_SECRET = ENV['HRK_SECRET']
+API_KEY = os.getenv('HRK_KEY')
+API_SECRET = os.getenv('HRK_SECRET')
