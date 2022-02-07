@@ -33,6 +33,13 @@ def test1():
 def test2():
     return "<p>"+config.API_KEY+"</p>"
 
+@app.route("/test/webhook", methods=['POST'])
+def testWebhook():
+    data = json.loads(request.data)
+    return "I got this data\n" + data
+
+
+
 @app.route("/webhook", methods=['POST'])
 def test_wh():
     data = json.loads(request.data)
