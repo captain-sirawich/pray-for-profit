@@ -28,7 +28,7 @@ def hello_world():
     return "<p>HOME</p>"
 
 @app.route("/test/ConfigAPIKey")
-def test2():
+def testKey():
     return "<p>"+config.API_KEY+"</p>"
 
 @app.route("/test/getAccount")
