@@ -3,6 +3,7 @@ from flask import Flask, request
 from binance.client import Client
 from binance.enums import *
 import os
+import pandas as pd
 
 app = Flask(__name__)
 
@@ -26,7 +27,7 @@ def order(side, quantity, symbol, order_type=ORDER_TYPE_MARKET):
 def hello_world():
     return "<p>HOME</p>"
 
-@app.route("/testConfigKey")
+@app.route("/test/ConfigAPIKey")
 def test2():
     return "<p>"+config.API_KEY+"</p>"
 
