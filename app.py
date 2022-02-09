@@ -26,12 +26,20 @@ def order(side, quantity, symbol, order_type=ORDER_TYPE_MARKET):
 def hello_world():
     return "<p>HOME</p>"
 
-@app.route("/test1")
-def test1():
-    return "<p>TEST1 Duhh</p>"
-@app.route("/test2")
+@app.route("/testConfigKey")
 def test2():
     return "<p>"+config.API_KEY+"</p>"
+
+@app.route("/test/getAccount")
+def getAccount():
+    client = Client(config.API_KEY,config.API_SECRET)
+    info = client.get_account()
+    data = pd.DataFrame(info["balances"])
+    usdt = data[data["asset"]=="USDT"]
+    btc = data[data["asset"]=="BTC"]
+    print(usdt)
+    print(btc)
+    return info
 
 @app.route("/webhook", methods=['POST'])
 def test_wh():
