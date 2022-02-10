@@ -42,6 +42,23 @@ def getAccount():
     print(btc)
     return info
 
+@app.route("/test/posSize", methods=['POST'])
+def posSize():
+    client = Client(config.API_KEY,config.API_SECRET)
+    info = client.get_account()
+    df = pd.DataFrame(info["balances"])
+    usdt = df[df["asset"]=="USDT"].to_dict('records')[0]
+
+    data = json.loads(request.data)
+    risk = data['strategy']['risk']
+    slper = data['strategy']['slper']
+    equity = float(usdt['free'])
+    
+    positionSize = equity*risk/slper
+    print(positionSize)
+
+    return str(positionSize)
+
 @app.route("/webhook", methods=['POST'])
 def test_wh():
     data = json.loads(request.data)
