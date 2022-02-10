@@ -55,6 +55,9 @@ def posSize():
     equity = float(usdt['free'])
     
     positionSize = equity*risk/slper
+    if positionSize > equity:
+        positionSize = equity
+        
     print(positionSize)
 
     return str(positionSize)
@@ -72,17 +75,20 @@ def test_wh():
     side = data['strategy']['order_action'].upper()
     quantity = data['strategy']['order_contracts']
     pair = data['ticker']
-    order_response = order(side, quantity, pair)
+    
+    quantity_real = posSize()
+    print(quantity_real)
+    return quantity_real
+    # order_response = order(side, quantity, pair)
+    # if order_response:
+    #     return {
+    #         "code": "success",
+    #         "message": "order executed"
+    #     }
+    # else:
+    #     print("order failed")
 
-    if order_response:
-        return {
-            "code": "success",
-            "message": "order executed"
-        }
-    else:
-        print("order failed")
-
-        return {
-            "code": "error",
-            "message": "order failed"
-        }
+    #     return {
+    #         "code": "error",
+    #         "message": "order failed"
+    #     }
