@@ -76,9 +76,9 @@ def test_wh():
     quantity = data['strategy']['order_contracts']
     pair = data['ticker']
     
-    quantity_real = posSize()
+    quantity_real = float(posSize())/data['strategy']['order_price']
     print(quantity_real)
-    return quantity_real
+    return "quantity_real"
     # order_response = order(side, quantity, pair)
     # if order_response:
     #     return {
