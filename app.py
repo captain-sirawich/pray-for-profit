@@ -78,6 +78,7 @@ def test_wh():
     
     quantity_real = float(posSize())/data['strategy']['order_price']
     print("Coin quantity ", quantity_real)
+    return "test quantity"
 
     # order_response = order(side, quantity, pair)
     # if order_response:
