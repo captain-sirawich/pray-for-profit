@@ -42,6 +42,15 @@ def getAccount():
     print(btc)
     return info
 
+@app.route("/test/getCoin")
+def getCoin():
+    client = Client(config.API_KEY,config.API_SECRET)
+    info = client.get_account()
+    data = pd.DataFrame(info["balances"])
+    btc = data[data["asset"]=="BTC"]
+    print("Coin on acc", btc)
+    return btc
+
 @app.route("/test/posSize", methods=['POST'])
 def posSize():
     client = Client(config.API_KEY,config.API_SECRET)
@@ -73,23 +82,26 @@ def test_wh():
         }
     
     side = data['strategy']['order_action'].upper()
-    quantity = data['strategy']['order_contracts']
+    # quantity = data['strategy']['order_contracts']
     pair = data['ticker']
     
     quantity_real = float(posSize())/data['strategy']['order_price']
     print("Coin quantity ", quantity_real)
     return "test quantity"
 
-    # order_response = order(side, quantity, pair)
-    # if order_response:
-    #     return {
-    #         "code": "success",
-    #         "message": "order executed"
-    #     }
-    # else:
-    #     print("order failed")
+    # if side == "BUY":
+    #     order_response = order(side, quantity_real, pair)
+    #     if order_response:
+    #         return {
+    #             "code": "success",
+    #             "message": "order executed"
+    #         }
+    #     else:
+    #         print("order failed")
 
-    #     return {
-    #         "code": "error",
-    #         "message": "order failed"
-    #     }
+    #         return {
+    #             "code": "error",
+    #             "message": "order failed"
+    #         }
+    # else:
+        
