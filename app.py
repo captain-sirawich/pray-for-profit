@@ -25,7 +25,9 @@ def order(side, quantity, symbol, order_type=ORDER_TYPE_MARKET):
 
 def round_down(value, decimals):
     factor = 1 / (10 ** decimals)
-    return (value // factor) * factor
+    val = (value // factor) * factor
+    val = float("{:.5f}".format(val))
+    return val
 
 @app.route("/")
 def hello_world():
