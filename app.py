@@ -58,7 +58,7 @@ def posSize():
     if positionSize > equity:
         positionSize = equity
         
-    print(positionSize)
+    print("Position Size ", positionSize)
 
     return str(positionSize)
 
@@ -77,8 +77,8 @@ def test_wh():
     pair = data['ticker']
     
     quantity_real = float(posSize())/data['strategy']['order_price']
-    print(quantity_real)
-    return "quantity_real"
+    print("Coin quantity ", quantity_real)
+
     # order_response = order(side, quantity, pair)
     # if order_response:
     #     return {
