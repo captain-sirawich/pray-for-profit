@@ -87,21 +87,35 @@ def test_wh():
     
     quantity_real = float(posSize())/data['strategy']['order_price']
     print("Coin quantity ", quantity_real)
-    return "test quantity"
+    # return "test quantity"
 
-    # if side == "BUY":
-    #     order_response = order(side, quantity_real, pair)
-    #     if order_response:
-    #         return {
-    #             "code": "success",
-    #             "message": "order executed"
-    #         }
-    #     else:
-    #         print("order failed")
+    if side == "BUY":
+        order_response = order(side, quantity_real, pair)
+        if order_response:
+            return {
+                "code": "buy success",
+                "message": "order executed"
+            }
+        else:
+            print("order failed")
 
-    #         return {
-    #             "code": "error",
-    #             "message": "order failed"
-    #         }
-    # else:
-        
+            return {
+                "code": "buy error",
+                "message": "order failed"
+            }
+    else:
+        coin = getCoin()
+        quantity_sell = float(coin['free'])
+        order_response = order(side, quantity_sell, pair)
+        if order_response:
+            return {
+                "code": "sell success",
+                "message": "order executed"
+            }
+        else:
+            print("order failed")
+
+            return {
+                "code": "sell error",
+                "message": "order failed"
+            }
