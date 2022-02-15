@@ -23,6 +23,10 @@ def order(side, quantity, symbol, order_type=ORDER_TYPE_MARKET):
 
     return order
 
+def round_down(value, decimals):
+    factor = 1 / (10 ** decimals)
+    return (value // factor) * factor
+
 @app.route("/")
 def hello_world():
     return "<p>HOME</p>"
@@ -86,7 +90,7 @@ def test_wh():
     pair = data['ticker']
     
     quantity_real = float(posSize())/data['strategy']['order_price']
-    quantity_real = float("{:.5f}".format(quantity_real))
+    quantity_real = round_down(quantity_real, 5)
     print("Coin quantity ", quantity_real)
     # return "test quantity"
 
@@ -107,7 +111,7 @@ def test_wh():
     else:
         coin = getCoin()
         quantity_sell = float(coin['free'])
-        quantity_sell = float("{:.5f}".format(quantity_sell))
+        quantity_sell = round_down(quantity_sell, 5)
         order_response = order(side, quantity_sell, pair)
         if order_response:
             return {
