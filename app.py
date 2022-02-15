@@ -47,7 +47,7 @@ def getCoin():
     client = Client(config.API_KEY,config.API_SECRET)
     info = client.get_account()
     data = pd.DataFrame(info["balances"])
-    btc = data[data["asset"]=="BTC"]
+    btc = data[data["asset"]=="BTC"].to_dict('records')[0]
     print("Coin on acc", btc)
     return btc
 
