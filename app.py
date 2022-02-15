@@ -86,7 +86,7 @@ def test_wh():
     pair = data['ticker']
     
     quantity_real = float(posSize())/data['strategy']['order_price']
-    quantity_real = round(quantity_real, 8)
+    quantity_real = float("{:.5f}".format(quantity_real))
     print("Coin quantity ", quantity_real)
     # return "test quantity"
 
@@ -107,7 +107,7 @@ def test_wh():
     else:
         coin = getCoin()
         quantity_sell = float(coin['free'])
-        quantity_sell = round(quantity_sell, 8)
+        quantity_sell = float("{:.5f}".format(quantity_sell))
         order_response = order(side, quantity_sell, pair)
         if order_response:
             return {
