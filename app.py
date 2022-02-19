@@ -2,8 +2,9 @@ import json, config
 from flask import Flask, request
 from binance.client import Client
 from binance.enums import *
-import os
 import pandas as pd
+#line notify
+import notify as n
 
 app = Flask(__name__)
 
@@ -27,9 +28,11 @@ def order(side, quantity, symbol, order_type=ORDER_TYPE_MARKET):
 def hello_world():
     return "<p>HOME</p>"
 
-@app.route("/test1")
-def test1():
-    return "<p>TEST1 Duhh</p>"
+@app.route("/test/notify",methods=['POST'])
+def notify():
+    data = json.loads(request.data)
+
+    return n.send(data['message'])
 
 @app.route("/test/getAccount")
 def getAccount():
