@@ -31,8 +31,12 @@ def hello_world():
 @app.route("/test/notify",methods=['POST'])
 def notify():
     data = json.loads(request.data)
-
-    return n.send(data['message'])
+    side = data['side']
+    price = data['price']
+    btc_amount = data['btc_amount']
+    usdt_amount = data['usdt_amount']
+    time = data['time']
+    return n.send(side,btc_amount,price,usdt_amount,time)
 
 @app.route("/test/getAccount")
 def getAccount():
