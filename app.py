@@ -88,13 +88,11 @@ def test_wh():
         }
     
     side = data['strategy']['order_action'].upper()
-    # quantity = data['strategy']['order_contracts']
     pair = data['ticker']
     
     quantity_real = float(posSize())/data['strategy']['order_price']
     quantity_real = round_down(quantity_real, 5)
     print("Coin quantity ", quantity_real)
-    # return "test quantity"
 
     if side == "BUY":
         order_response = order(side, quantity_real, pair)
