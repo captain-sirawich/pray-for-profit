@@ -3,6 +3,7 @@ from flask import Flask, request
 from binance.client import Client
 from binance.enums import *
 import os
+import pandas as pd
 
 app = Flask(__name__)
 
@@ -22,16 +23,59 @@ def order(side, quantity, symbol, order_type=ORDER_TYPE_MARKET):
 
     return order
 
+def round_down(value, decimals):
+    factor = 1 / (10 ** decimals)
+    val = (value // factor) * factor
+    val = float("{:.5f}".format(val))
+    return val
+
 @app.route("/")
 def hello_world():
     return "<p>HOME</p>"
 
-@app.route("/test1")
-def test1():
-    return "<p>TEST1 Duhh</p>"
-@app.route("/test2")
-def test2():
+@app.route("/test/ConfigAPIKey")
+def testKey():
     return "<p>"+config.API_KEY+"</p>"
+
+@app.route("/test/getAccount")
+def getAccount():
+    client = Client(config.API_KEY,config.API_SECRET)
+    info = client.get_account()
+    data = pd.DataFrame(info["balances"])
+    usdt = data[data["asset"]=="USDT"]
+    btc = data[data["asset"]=="BTC"]
+    print(usdt)
+    print(btc)
+    return info
+
+@app.route("/test/getCoin")
+def getCoin():
+    client = Client(config.API_KEY,config.API_SECRET)
+    info = client.get_account()
+    data = pd.DataFrame(info["balances"])
+    btc = data[data["asset"]=="BTC"].to_dict('records')[0]
+    print("Coin on acc", btc)
+    return btc
+
+@app.route("/test/posSize", methods=['POST'])
+def posSize():
+    client = Client(config.API_KEY,config.API_SECRET)
+    info = client.get_account()
+    df = pd.DataFrame(info["balances"])
+    usdt = df[df["asset"]=="USDT"].to_dict('records')[0]
+
+    data = json.loads(request.data)
+    risk = data['strategy']['risk']
+    slper = data['strategy']['slper']
+    equity = float(usdt['free'])
+    
+    positionSize = equity*risk/slper
+    if positionSize > equity:
+        positionSize = equity
+        
+    print("Position Size ", positionSize)
+
+    return str(positionSize)
 
 @app.route("/webhook", methods=['POST'])
 def test_wh():
@@ -44,19 +88,40 @@ def test_wh():
         }
     
     side = data['strategy']['order_action'].upper()
-    quantity = data['strategy']['order_contracts']
     pair = data['ticker']
-    order_response = order(side, quantity, pair)
+    
+    quantity_real = float(posSize())/data['strategy']['order_price']
+    quantity_real = round_down(quantity_real, 5)
+    print("Coin quantity ", quantity_real)
 
-    if order_response:
-        return {
-            "code": "success",
-            "message": "order executed"
-        }
+    if side == "BUY":
+        order_response = order(side, quantity_real, pair)
+        if order_response:
+            return {
+                "code": "buy success",
+                "message": "order executed"
+            }
+        else:
+            print("order failed")
+
+            return {
+                "code": "buy error",
+                "message": "order failed"
+            }
     else:
-        print("order failed")
+        coin = getCoin()
+        quantity_sell = float(coin['free'])
+        quantity_sell = round_down(quantity_sell, 5)
+        order_response = order(side, quantity_sell, pair)
+        if order_response:
+            return {
+                "code": "sell success",
+                "message": "order executed"
+            }
+        else:
+            print("order failed")
 
-        return {
-            "code": "error",
-            "message": "order failed"
-        }
+            return {
+                "code": "sell error",
+                "message": "order failed"
+            }
