@@ -120,6 +120,7 @@ def test_wh():
         print("Order response : ", order_response)
         print("Type of order response : ", type(order_response))
         if order_response:
+            n.send_from_binance(order_response)
             return {
                 "code": "buy success",
                 "message": "order executed"
@@ -137,6 +138,7 @@ def test_wh():
         quantity_sell = round_down(quantity_sell, 5)
         order_response = order(side, quantity_sell, pair)
         if order_response:
+            n.send_from_binance(order_response)
             print("Order response : ", order_response)
             print("Type of order response : ", type(order_response))
             return {

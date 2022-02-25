@@ -3,4 +3,3 @@ gunicorn
 pandas
 python-binance
 requests
-python-dovenv
