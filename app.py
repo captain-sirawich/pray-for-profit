@@ -96,6 +96,7 @@ def test_wh():
 
     if side == "BUY":
         order_response = order(side, quantity_real, pair)
+        print(order_response)
         if order_response:
             return {
                 "code": "buy success",
@@ -114,6 +115,7 @@ def test_wh():
         quantity_sell = round_down(quantity_sell, 5)
         order_response = order(side, quantity_sell, pair)
         if order_response:
+            print(order_response)
             return {
                 "code": "sell success",
                 "message": "order executed"
