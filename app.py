@@ -50,7 +50,7 @@ def testNotify():
     btc_amount = quantity_real
     price = data['strategy']['order_price']
     usdt_amount = btc_amount*price
-    time = data['strategy']['time']
+    time = data['time']
     return n.send(side,btc_amount,price,usdt_amount,time)
    
 
