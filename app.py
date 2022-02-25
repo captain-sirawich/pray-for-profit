@@ -4,6 +4,7 @@ from binance.client import Client
 from binance.enums import *
 import os
 import pandas as pd
+import notify as n
 
 app = Flask(__name__)
 
@@ -36,6 +37,26 @@ def hello_world():
 @app.route("/test/ConfigAPIKey")
 def testKey():
     return "<p>"+config.API_KEY+"</p>"
+
+@app.route("/test/binance-notify",methods=['POST'])
+def testNotifyBinance():
+    return n.send_from_binance(request)
+
+@app.route("/test/notify",methods=['POST'])#TODO -- change response to be from Binance
+def testNotify():
+    data = json.loads(request.data)
+
+    #quantity_real = float(posSize())/data['strategy']['order_price']
+    quantity_real = float(50)/data['strategy']['order_price']
+    quantity_real = round_down(quantity_real, 5)
+
+    side = data['strategy']['order_action'].upper()
+    btc_amount = quantity_real
+    price = data['strategy']['order_price']
+    usdt_amount = btc_amount*price
+    time = data['time']
+    return n.send(side,btc_amount,price,usdt_amount,time)
+   
 
 @app.route("/test/getAccount")
 def getAccount():
