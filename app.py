@@ -38,7 +38,11 @@ def hello_world():
 def testKey():
     return "<p>"+config.API_KEY+"</p>"
 
-@app.route("/test/notify",methods=['POST'])
+@app.route("/test/binance-notify",methods=['POST'])
+def testNotifyBinance():
+    return n.send_from_binance(request)
+
+@app.route("/test/notify",methods=['POST'])#TODO -- change response to be from Binance
 def testNotify():
     data = json.loads(request.data)
 
