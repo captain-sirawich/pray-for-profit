@@ -98,6 +98,15 @@ def posSize():
 
     return str(positionSize)
 
+def get_usdt():
+    client = Client(config.API_KEY,config.API_SECRET)
+    info = client.get_account()
+    data = pd.DataFrame(info["balances"])
+    usdt = data[data["asset"]=="USDT"].to_dict('records')[0]
+    print("USDT on acc", usdt)
+    return usdt
+
+
 @app.route("/webhook", methods=['POST'])
 def test_wh():
     data = json.loads(request.data)
@@ -115,12 +124,15 @@ def test_wh():
     quantity_real = round_down(quantity_real, 5)
     print("Coin quantity ", quantity_real)
 
+    usdt = get_usdt()
+
     if side == "BUY":
         order_response = order(side, quantity_real, pair)
         print("Order response : ", order_response)
         print("Type of order response : ", type(order_response))
+        
         if order_response:
-            n.send_from_binance(order_response)
+            n.send_from_binance(order_response,usdt)
             return {
                 "code": "buy success",
                 "message": "order executed"
@@ -138,7 +150,7 @@ def test_wh():
         quantity_sell = round_down(quantity_sell, 5)
         order_response = order(side, quantity_sell, pair)
         if order_response:
-            n.send_from_binance(order_response)
+            n.send_from_binance(order_response,usdt)
             print("Order response : ", order_response)
             print("Type of order response : ", type(order_response))
             return {
