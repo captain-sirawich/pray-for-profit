@@ -1,0 +1,174 @@
+// This source code is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
+// © guynawapas
+
+//@version=5
+strategy(title="DEMA + Super trend", overlay = true, currency = currency.USD, initial_capital = 10000,default_qty_type = strategy.percent_of_equity,default_qty_value = 100, commission_type = strategy.commission.percent,commission_value = 0.075)
+
+
+//----------------------------USER INPUTS--------------------------------------------------------------------------------
+
+
+//----------------------------DEMA Params--------------------------------------------------------------------------------
+res = input.timeframe(defval = "180", title="DEMA resolution",group = "DEMA Params",inline = "DEMA")
+s = request.security("BTCUSDT", res, close)
+dema_length = input.int(defval =200, title="DEMA length",   group = "DEMA Params",inline = "DEMA", minval = 1)
+
+ema1 = ta.ema(s,dema_length)
+ema2 = ta.ema(ema1,dema_length)
+dema = 2*ema1-ema2
+
+plot(dema,title="DEMA",color = color.orange,linewidth = 2)
+
+
+
+//----------------------------Supertrend Params---------------------------------------------------------------------------
+super_multi = input.int(defval = 3, title = "Supertrend Multiplier", minval = 1,group = "Supertrend Params",inline = "Supertrend")
+super_atr = input.int(defval = 12, title = "Supertrend ATR", minval = 1,group = "Supertrend Params",inline = "Supertrend")
+
+[supertrend, direction] = ta.supertrend(super_multi, super_atr)
+green = plot(direction < 0 ? supertrend : na, "Up direction", color = color.green, style=plot.style_linebr)
+red = plot(direction < 0? na : supertrend, "Down direction", color = color.red, style=plot.style_linebr)
+closePrice=plot(close,display=display.none)
+fill(closePrice,green,color=color.new(color.green, 90))
+fill(closePrice,red,color=color.new(color.red, 90))
+
+
+
+//----------------------------Trend Check-----------------------------------------------------
+use_avoidDownTrend = input.bool(defval=true, title="Avoid down trend",     group = "Trend Check Params")
+ema_res = input.timeframe(defval = "180", title="EMA resolution",           group = "Trend Check Params")
+high_timeframe_period = input.int(30,title="Higher Timeframe EMA period",   group = "Trend Check Params")
+s_ema = request.security("BTCUSDT", res, close)
+ema_high = ta.ema(s_ema,high_timeframe_period)
+
+downTrend_lookback_period = input.int(defval = 8, title="Down Trend Look Back Period",   group = "Trend Check Params")
+
+//plot(ema_high,color = color.white, linewidth = 2)
+
+
+
+//-----------------Account Risk----------------
+risk = input.float(defval=2.,step=0.1,title='Risk percentage', group="Account Risk",minval=0,inline='risk')
+
+
+
+//-----------------Stoploss and Takeprofit-----------------
+SLTP_type = input.string(defval="ATR",options=["%","ATR"],title="Risk Type",group="Stoploss & Takeprofit")
+
+use_stoploss = input.bool(defval = true,title="Use stoploss",group="Stoploss & Takeprofit")
+stoploss_percentage = input.int(defval = 13, title = "Stoploss",group="Stoploss & Takeprofit", minval = 1,tooltip="% stoploss/ ATR length")
+multi_stoploss = input.float(defval = 1.8,step = 0.1 , title="ATR Multiplier", group = "Stoploss & Takeprofit",tooltip="Value used when select ATR as a stoploss type")
+
+use_takeProfit = input.bool(defval = true,title="Use Take Profit",group="Stoploss & Takeprofit")
+activation = input.float(defval = 14,step = 0.1,title="Take Profit",group="Stoploss & Takeprofit",minval = 1,tooltip="% takeprofit/ ATR length")
+multi_takeprofit = input.float(defval = 2.3 ,step = 0.1, title="ATR Multiplier", group = "Stoploss & Takeprofit",tooltip="Value used when select ATR as a stoploss type")
+
+
+
+//----------------------------Backtest Params--------------------------------------------------------
+fromDay   = input.int(defval = 1,    title = "From Day",    group="Backtest Params",    inline="start",     minval = 1, maxval = 31)
+fromMonth = input.int(defval = 3,    title = "Month",  group="Backtest Params",    inline="start",     minval = 1, maxval = 12)
+fromYear  = input.int(defval = 2021, title = "Year",   group="Backtest Params",    inline="start",     minval = 1970)
+thruDay   = input.int(defval = 31,   title = "Thru Day",    group="Backtest Params",    inline="stop",     minval = 1, maxval = 31)
+thruMonth = input.int(defval = 12,   title = "Month",  group="Backtest Params",    inline="stop",     minval = 1, maxval = 12)
+thruYear  = input.int(defval = 2021, title = "Year",   group="Backtest Params",    inline="stop",     minval = 1970)
+
+start     = timestamp(fromYear, fromMonth, fromDay, 00, 00)        // backtest start window
+finish    = timestamp(thruYear, thruMonth, thruDay, 23, 59)        // backtest finish window
+window()  => time >= start and time <= finish ? true : false 
+
+//-----------------------------------END USER INPUTS-------------------------------------------------
+
+
+
+//----------------------------Buy signal-------------------------------------------------------------
+condition1 = close>dema
+condition2 = direction[0]==-1 and direction[1]==1
+alt = ta.barssince(condition2)
+//plot(alt<5?alt*10000:na,color=color.orange,linewidth=2,style=plot.style_linebr)
+alt_condition = alt<5
+
+//----------------------------Sell signal-----------------------------------------------------------
+condition3 = direction[0]==1 and direction[1]==-1
+
+
+
+//------------TakeProfit and Stoploss--------------------------------------------------
+
+var entryPrice = close
+
+stoploss = 0.
+maximumRisk = 0.01 * stoploss_percentage
+if use_stoploss
+    if SLTP_type == "%"
+        stoploss := entryPrice-(entryPrice*maximumRisk)
+    else if SLTP_type == "ATR"
+        stoploss := entryPrice - ta.atr(math.max(math.round(stoploss_percentage),1))*multi_stoploss
+        
+takeprofit = 0.
+activation_percentage = 0.01 * activation
+if use_takeProfit
+    if SLTP_type == "%"
+        takeprofit := entryPrice+(entryPrice*activation_percentage)
+    else if SLTP_type == "ATR"
+        takeprofit := entryPrice + ta.atr(math.max(math.round(activation),1))*multi_takeprofit
+        
+
+//------------End TakeProfit and Stoploss----------------------------------------------
+
+
+
+
+//------------Position size------------------------------------------------------------
+position_size = 0.
+sldist = entryPrice - stoploss
+slper = sldist / entryPrice * 100
+
+if condition1 and alt_condition
+    position_size := (strategy.equity * risk) / slper
+    if position_size > strategy.equity
+        position_size := strategy.equity
+contract_amt = position_size/close
+
+
+plot(contract_amt*100,title="amt*100")
+plot(position_size,title="positionSize",color=color.white,linewidth=2,display=display.all)  
+plot(strategy.equity,title="Equity",color=color.red,linewidth = 1)
+
+//------------End Position size--------------------------------------------------------
+
+
+if use_avoidDownTrend 
+    if condition1 and alt_condition and window() and not ta.falling(ema_high,downTrend_lookback_period)
+        entryPrice := close
+        
+        strategy.entry("Buy",strategy.long,qty=contract_amt)
+      
+        if use_stoploss and use_takeProfit
+            strategy.exit('Buy',stop=stoploss, trail_price=takeprofit, trail_offset=100, comment='Take Profit and stoploss')
+        else if use_stoploss
+            strategy.exit("Buy",stop=stoploss,comment = "Exit stoploss")
+        else if use_takeProfit
+            strategy.exit('Buy',trail_price=takeprofit, trail_offset=100, comment='Take Profit and stoploss')
+     
+else
+    if condition1 and alt_condition and window()
+        entryPrice := close
+
+        strategy.entry("Buy",strategy.long,qty=contract_amt)
+ 
+        if use_stoploss and use_takeProfit
+            strategy.exit('Buy',stop=stoploss, trail_price=takeprofit, trail_offset=100, comment='Take Profit and stoploss')
+        else if use_stoploss
+            strategy.exit("Buy",stop=stoploss,comment = "Exit stoploss")
+        else if use_takeProfit
+            strategy.exit('Buy',trail_price=takeprofit, trail_offset=100, comment='Take Profit')
+
+
+
+if direction[0]==1 and direction[1]==-1 and close >= entryPrice and window()
+    strategy.close("Buy")
+    
+    
+plot(stoploss,title="Stoploss")
+plot(takeprofit,title="Takeprofit")
