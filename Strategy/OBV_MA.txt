@@ -1,0 +1,168 @@
+// This source code is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
+// © sonnyparlin
+
+//@version=5
+strategy("OBV MA Strategy", overlay=true, 
+     commission_type=strategy.commission.percent, 
+     currency=currency.USD, 
+     commission_value=0.1,
+     default_qty_type = strategy.percent_of_equity,
+     default_qty_value=100, initial_capital=60,
+     slippage=10)
+
+//-----------------TEMA Params-----------------
+obvSmaLen = input.int(30, "Length of OBV moving average in days")
+obvOffset=input.float(10, title="OBV Offset (%)")
+
+
+//-----------------Trend Check-----------------
+use_avoidDownTrend = input.bool(defval = false, title="Avoid down trend", group="Trend Check Params")
+downTrend_lookback_period = input.int(defval = 5, title="Down Trend Look Back Period", group="Trend Check Params")
+res = input.timeframe(defval = "60", title="Trend Check resolution", group="Trend Check Params")
+s = request.security("BTCUSDT", res, close)
+high_timeframe_period = input.int(defval = 20, title="EMA of Trend Check", group="Trend Check Params")
+ema_high = ta.ema(s,high_timeframe_period)
+plot(ema_high,color = color.white, linewidth = 2)
+
+
+//-----------------Stoploss and Takeprofit-----------------
+SLTP_type = input.string(defval="%",options=["%","ATR"],title="Risk Type", group="Stoploss & Takeprofit")
+activation = input.float(0.7, step=0.1, title="Trailing stop activation Level (%)", group="Stoploss & Takeprofit")
+usetstop=input.bool(true, "Use trailing stoploss", group="Stoploss & Takeprofit")
+ticks = input.int(100, "Trailing stop in ticks", group="Stoploss & Takeprofit")
+stoploss_percentage = input.float(3.6, step=0.1, title="Absolute stop loss (%)", group="Stoploss & Takeprofit")
+multi_stoploss = input.float(defval = 3.1,step = 0.1 , title="ATR Multiplier", group = "Stoploss & Takeprofit",tooltip="Value used when select ATR as a stoploss type")
+multi_takeprofit = input.float(defval = 4.3 ,step = 0.1, title="ATR Multiplier", group = "Stoploss & Takeprofit",tooltip="Value used when select ATR as a stoploss type")
+
+
+//-----------------Account Risk----------------
+risk = input.float(defval=2.,step=0.1,title='Risk percentage', group="Account Risk",minval=0,inline='risk')
+
+
+//-----------------Backtest Params-------------
+fromMonth = input.int(defval = 1,    title = "From Month",     minval = 1, maxval = 12)
+fromDay   = input.int(defval = 1,    title = "From Day",         minval = 1, maxval = 31)
+fromYear  = input.int(defval = 2022, title = "From Year",      minval = 1970)
+thruMonth = input.int(defval = 12,    title = "Thru Month",      minval = 1, maxval = 12)
+thruDay   = input.int(defval = 31,    title = "Thru Day",         minval = 1, maxval = 31)
+thruYear  = input.int(defval = 2022, title = "Thru Year",       minval = 1970)
+
+start     = timestamp(fromYear, fromMonth, fromDay, 00, 00)        // backtest start window
+finish    = timestamp(thruYear, thruMonth, thruDay, 23, 59)        // backtest finish window
+window()  => time >= start and time <= finish ? true : false
+
+
+//------------TakeProfit and Stoploss--------------------------------------------------
+
+entryPrice = close
+
+stoploss = 0.
+maximumRisk = 0.01 * stoploss_percentage
+
+if SLTP_type == "%"
+    stoploss := entryPrice-(entryPrice*maximumRisk)
+else if SLTP_type == "ATR"
+    stoploss := entryPrice - ta.atr(math.max(math.round(stoploss_percentage),1))*multi_stoploss
+    
+takeprofit = 0. 
+activation_percentage = 0.01 * activation
+
+if SLTP_type == "%"
+    takeprofit := entryPrice+(entryPrice*activation_percentage)
+else if SLTP_type == "ATR"
+    takeprofit := entryPrice + ta.atr(math.max(math.round(activation),1))*multi_takeprofit
+
+//------------End TakeProfit and Stoploss----------------------------------------------
+
+
+//------------Position size------------------------------------------------------------
+position_size = 0.
+sldist = entryPrice - stoploss
+slper = sldist / entryPrice * 100
+
+
+position_size := (strategy.equity * risk) / slper
+if position_size > strategy.equity
+    position_size := strategy.equity
+contract_amt = position_size/close
+
+
+plot(contract_amt*100,title="amt*100")
+plot(position_size,title="positionSize",color=color.white,linewidth=2,display=display.all)  
+plot(strategy.equity,title="Equity",color=color.red,linewidth = 1)
+
+//------------End Position size--------------------------------------------------------
+
+
+// Inputs and variables
+// orderStake = input.int(100, 'Order Stake (%)', minval=0, step=1) / 100
+
+// float orderSize = strategy.equity * orderStake / close 
+// if orderSize > 1000000000
+//     orderSize := 1000000000
+
+obvSma = ta.sma(ta.obv, obvSmaLen)
+
+getPercent(num1,num2) =>
+    (num1-num2) / num1 * 100
+
+condition1 = ta.crossover(ta.obv, obvSma)
+condition2 = getPercent(obvSma,ta.obv) > obvOffset
+condition3 = ta.rising(obvSma,5) and ta.obv > obvSma and ta.rising(ta.obv,1)
+
+longCondition = condition1 or condition2 or condition3
+if use_avoidDownTrend
+    if (longCondition and window()) and strategy.opentrades == 0 and not ta.falling(ema_high, downTrend_lookback_period)
+        strategy.entry('Long', strategy.long, contract_amt, comment='Long')
+        if (usetstop)
+            strategy.exit("Long", stop=stoploss, trail_price=takeprofit, trail_offset=ticks, comment="Long Stop")
+        else
+            strategy.exit("Long", stop=stoploss, comment="Long Stop Loss")
+else
+    if (longCondition and window()) and strategy.opentrades == 0
+        strategy.entry('Long', strategy.long, contract_amt, comment='Long')
+        if (usetstop)
+            strategy.exit("Long", stop=stoploss, trail_price=takeprofit, trail_offset=ticks, comment="Long Stop")
+        else
+            strategy.exit("Long", stop=stoploss, comment="Long Stop Loss")
+            
+
+// useSellSignal = input.bool(false, title="Use Sell Signal")
+// longStop = ta.crossunder(ta.obv,obvSma)
+// minimumProfit = input.float(2, step=0.1, title="Minimum profit to make on a trade before exiting (%)")
+// minProfit = getPercent(close, entryPrice) > minimumProfit
+// if (useSellSignal and usetstop)
+//     if (longStop and close < activationLevel and minProfit)
+//         strategy.close("Long", comment="Sell Signal")
+// else if (useSellSignal and not usetstop)
+//     if (longStop and minProfit)
+//         strategy.close("Long", comment="Sell Signal")
+        
+// useMicroStop=input.bool(true, "Use Micro Stop")
+// msCondition1 = open > activationLevel
+// msCondition2 = close < activationLevel
+// msCondition3 = ta.crossover(high, activationLevel)
+// msCondition4 = close < activationLevel
+// if (useMicroStop)
+//     if (msCondition1 and msCondition2) or (msCondition3 and msCondition4)
+//         strategy.close("Long", comment="Micro Stop")
+        
+// var tstop = float(na)
+// if close > activationLevel and strategy.opentrades > 0
+//     tstop := math.max(high - ticks * syminfo.mintick, nz(tstop[1]))
+//     tstop
+// else
+//     tstop := na
+//     tstop
+
+plot(entryPrice, title="entryPrice", style=plot.style_linebr, color=color.new(color.green,30))
+// plot(stopLossPrice, title="absolute stoploss", style=plot.style_linebr, color=color.new(color.red,30))
+// plot(activationLevel, title="activationLevel", style=plot.style_linebr, color=color.new(color.blue,30))
+// plot(usetstop ? tstop : na, title="trailing stop", style=plot.style_linebr, color=color.new(color.white,30))
+// plot(stopLossPrice, title="Stop Loss", style=plot.style_linebr, color=color.new(color.red,30))
+
+plot(stoploss,title="stoploss",display=display.all)
+plot(takeprofit,title="takeprofit",display=display.all)
+plot(risk,title="risk",display=display.all)
+plot(slper,title="slper",display=display.all)
+

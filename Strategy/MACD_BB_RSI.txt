@@ -1,0 +1,160 @@
+//@version=5
+strategy('MACD + BB + RSI', shorttitle='MACD + BB + RSI', overlay=true, pyramiding=0, currency=currency.USD, initial_capital=10000, default_qty_type=strategy.percent_of_equity, default_qty_value=10, commission_type=strategy.commission.percent, commission_value=0.075)
+
+txtVer = '1.0.1'
+version = input.string(title='Version', defval=txtVer, options=[txtVer], tooltip='This is informational only, nothing will change.')
+src = input(title='Source', defval=close)
+
+// MACD
+fast_length = input.int(title='Fast Length', defval=12, group='MACD')
+slow_length = input.int(title='Slow Length', defval=26, group='MACD')
+signal_length = input.int(title='Signal Smoothing', minval=1, maxval=50, defval=9, group='MACD')
+sma_source = input.string(title='Oscillator MA Type', defval='EMA', options=['SMA', 'EMA'], group='MACD')
+sma_signal = input.string(title='Signal Line MA Type', defval='EMA', options=['SMA', 'EMA'], group='MACD')
+fast_ma = sma_source == 'SMA' ? ta.sma(src, fast_length) : ta.ema(src, fast_length)
+slow_ma = sma_source == 'SMA' ? ta.sma(src, slow_length) : ta.ema(src, slow_length)
+macd = fast_ma - slow_ma
+signal = sma_signal == 'SMA' ? ta.sma(macd, signal_length) : ta.ema(macd, signal_length)
+
+// Bollinger Bands
+bbGroup = 'Bollindger Bands'
+length = input.int(20, title='Length', group=bbGroup)
+mult = input.float(2.0, title='StdDev', minval=0.001, maxval=5, group=bbGroup)
+
+basis = ta.sma(src, length)
+dev = mult * ta.stdev(src, length)
+upper = basis + dev
+lower = basis - dev
+
+// RSI
+rsiGroup = 'RSI'
+lenRSI = input.int(14, title='Length', minval=1, group=rsiGroup)
+// lessThan = input(50, title="Less than", minval=1 , maxval=100, group=rsiGroup)
+RSI = ta.rsi(src, lenRSI)
+
+// Strategy Conditions
+buy = ta.crossover(macd, signal) and RSI < 50 and close < basis
+sell = RSI > 70 and close > upper
+
+
+
+
+//-----------------Account Risk----------------
+risk = input.float(defval=2.,step=0.1,title='Risk percentage', group="Account Risk",minval=0,inline='risk')
+
+
+
+
+//-----------------Stoploss and Takeprofit-----------------
+SLTP_type = input.string(defval="%",options=["%","ATR"],title="Risk Type",group="Stoploss & Takeprofit")
+
+use_stoploss = input.bool(defval = true,title="Use stoploss",group="Stoploss & Takeprofit")
+stoploss_percentage = input.int(defval = 4, title = "Stoploss",group="Stoploss & Takeprofit", minval = 1,tooltip="Value used when select % as a stoploss type")
+multi_stoploss = input.float(defval = 1,step = 0.1 , title="ATR Multiplier", group = "Stoploss & Takeprofit",tooltip="Value used when select ATR as a stoploss type")
+
+use_takeProfit = input.bool(defval = true,title="Use Take Profit",group="Stoploss & Takeprofit")
+activation = input.float(defval = 3,step = 0.1,title="Take Profit",group="Stoploss & Takeprofit",minval = 1,tooltip="Value used when select % as a stoploss type")
+multi_takeprofit = input.float(defval = 1 ,step = 0.1, title="ATR Multiplier", group = "Stoploss & Takeprofit",tooltip="Value used when select ATR as a stoploss type")
+
+
+//------------TakeProfit and Stoploss--------------------------------------------------
+
+entryPrice = close
+
+stoploss = 0.
+maximumRisk = 0.01 * stoploss_percentage
+if use_stoploss
+    if SLTP_type == "%"
+        stoploss := entryPrice-(entryPrice*maximumRisk)
+    else if SLTP_type == "ATR"
+        stoploss := entryPrice - ta.atr(math.max(math.round(stoploss_percentage),1))*multi_stoploss
+        
+takeprofit = 0. 
+activation_percentage = 0.01 * activation
+if use_takeProfit
+    if SLTP_type == "%"
+        takeprofit := entryPrice+(entryPrice*activation_percentage)
+    else if SLTP_type == "ATR"
+        takeprofit := entryPrice + ta.atr(math.max(math.round(activation),1))*multi_takeprofit
+
+//------------End TakeProfit and Stoploss----------------------------------------------
+
+
+
+//------------Position size------------------------------------------------------------
+position_size = 0.
+sldist = entryPrice - stoploss
+slper = sldist / entryPrice * 100
+
+
+position_size := (strategy.equity * risk) / slper
+if position_size > strategy.equity
+    position_size := strategy.equity
+contract_amt = position_size/close
+
+
+plot(contract_amt*100,title="amt*100")
+plot(position_size,title="positionSize",color=color.white,linewidth=2,display=display.all)  
+plot(strategy.equity,title="Equity",color=color.red,linewidth = 1)
+
+//------------End Position size--------------------------------------------------------
+
+
+
+    
+//-----------------Trend Check-----------------
+use_avoidDownTrend      =   input.bool(defval=true,title="Avoid down trend",           group = "Trend Check Params")
+res = input.timeframe(defval = "180", title="Trend Check resolution",group = "Trend Check Params")
+s  = request.security("BTCUSDT", res, close)
+high_timeframe_period   =   input.int(10,           title="Higher Timeframe EMA period",group = "Trend Check Params")
+downTrend_lookback_period = input.int(defval = 3,   title="Down Trend Look Back Period",group = "Trend Check Params")
+ema_high = ta.ema(s,high_timeframe_period)
+plot(not ta.falling(ema_high,downTrend_lookback_period)?close+10000:close-10000, color=color.red,linewidth=2)
+
+fromMonth = input.int(defval = 3,    title = "From Month",     minval = 1, maxval = 12)
+fromDay   = input.int(defval = 1,    title = "From Day",         minval = 1, maxval = 31)
+fromYear  = input.int(defval = 2021, title = "From Year",      minval = 1970)
+thruMonth = input.int(defval = 12,    title = "Thru Month",      minval = 1, maxval = 12)
+thruDay   = input.int(defval = 31,    title = "Thru Day",         minval = 1, maxval = 31)
+thruYear  = input.int(defval = 2021, title = "Thru Year",       minval = 1970)
+
+start = timestamp(fromYear, fromMonth, fromDay, 00, 00)  
+finish = timestamp(thruYear, thruMonth, thruDay, 23, 59)  
+window()  => time >= start and time <= finish ? true : false
+        
+alt = ta.barssince(buy)
+plot(alt<5?alt*10000:na,color=color.orange,linewidth=2,style=plot.style_linebr)
+alt_condition = alt<5
+
+
+
+// x = plot(buy?60000:na,color=color.red,linewidth=2)
+// y=plot(alt_condition?55000:na,color=color.green,linewidth=2)
+// z=plot(buy and alt_condition and window()?50000:na,color=color.blue,linewidth=2)
+if use_avoidDownTrend
+    if buy and alt_condition and window() and not ta.falling(ema_high,downTrend_lookback_period)
+        entryPrice := close
+        
+        strategy.entry("Buy",strategy.long,qty = contract_amt)
+      
+        if use_stoploss and use_takeProfit
+            strategy.exit('Buy',stop=stoploss, trail_price=takeprofit, trail_offset=100, comment='Take Profit and stoploss')
+        else if use_stoploss
+            strategy.exit("Buy",stop=stoploss,comment = "Exit stoploss")
+        else if use_takeProfit
+            strategy.exit('Buy',trail_price=takeprofit, trail_offset=100, comment='Take Profit and stoploss')
+else
+    if buy and alt_condition and window()
+        entryPrice := close
+        
+        strategy.entry("Buy",strategy.long,qty = contract_amt)
+      
+        if use_stoploss and use_takeProfit
+            strategy.exit('Buy',stop=stoploss, trail_price=takeprofit, trail_offset=100, comment='Take Profit and stoploss')
+        else if use_stoploss
+            strategy.exit("Buy",stop=stoploss,comment = "Exit stoploss")
+        else if use_takeProfit
+            strategy.exit('Buy',trail_price=takeprofit, trail_offset=100, comment='Take Profit and stoploss')
+       
+if sell and window()
+    strategy.close("Buy")

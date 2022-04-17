@@ -1,0 +1,157 @@
+//@version=5
+strategy(title="TEMA + EMA strategy", overlay = true, currency = currency.USD, initial_capital = 60,default_qty_type = strategy.percent_of_equity,default_qty_value = 100, commission_type = strategy.commission.percent,commission_value = 0.075)
+//-----------------USER INPUT--------------------------------------------------------------------------------------
+
+
+//-----------------TEMA Params-----------------
+fast_period = input.int(defval = 26, title = "Fast Period" ,group="TEMA Params", minval = 1)
+slow_period = input.int(defval = 60, title = "Slow Period" ,group="TEMA Params", minval = 1)
+
+
+
+//-----------------Trend Check-----------------
+use_avoidDownTrend      =   input.bool(defval=true,title="Avoid down trend",           group = "Trend Check Params")
+res = input.timeframe(defval = "180", title="Trend Check resolution",group = "Trend Check Params")
+s  = request.security("BTCUSDT", res, close)
+high_timeframe_period   =   input.int(8,           title="Higher Timeframe EMA period",group = "Trend Check Params")
+downTrend_lookback_period = input.int(defval = 8,   title="Down Trend Look Back Period",group = "Trend Check Params")
+ema_high = ta.ema(s,high_timeframe_period)
+
+
+
+//-----------------Account Risk----------------
+risk = input.float(defval=2.,step=0.1,title='Risk percentage', group="Account Risk",minval=0,inline='risk')
+
+
+
+
+//-----------------Stoploss and Takeprofit-----------------
+SLTP_type = input.string(defval="ATR",options=["%","ATR"],title="Risk Type",group="Stoploss & Takeprofit")
+
+use_stoploss = input.bool(defval = true,title="Use stoploss",group="Stoploss & Takeprofit")
+stoploss_percentage = input.int(defval = 4, title = "Stoploss",group="Stoploss & Takeprofit", minval = 1,tooltip="% stoploss/ ATR length")
+multi_stoploss = input.float(defval = 3.1,step = 0.1 , title="ATR Multiplier", group = "Stoploss & Takeprofit",tooltip="Value used when select ATR as a stoploss type")
+
+use_takeProfit = input.bool(defval = true,title="Use Take Profit",group="Stoploss & Takeprofit")
+activation = input.float(defval = 4,step = 0.1,title="Take Profit",group="Stoploss & Takeprofit",minval = 1,tooltip="% takeprofit/ ATR length")
+multi_takeprofit = input.float(defval = 4.3 ,step = 0.1, title="ATR Multiplier", group = "Stoploss & Takeprofit",tooltip="Value used when select ATR as a stoploss type")
+
+
+//-----------------Backtest Params-----------------
+fromDay   = input.int(defval = 1,    title = "From Day",    group="Backtest Params",    inline="start",     minval = 1, maxval = 31)
+fromMonth = input.int(defval = 1,    title = "Month",  group="Backtest Params",    inline="start",     minval = 1, maxval = 12)
+fromYear  = input.int(defval = 2022, title = "Year",   group="Backtest Params",    inline="start",     minval = 1970)
+thruDay   = input.int(defval = 31,   title = "Thru Day",    group="Backtest Params",    inline="stop",     minval = 1, maxval = 31)
+thruMonth = input.int(defval = 12,   title = "Month",  group="Backtest Params",    inline="stop",     minval = 1, maxval = 12)
+thruYear  = input.int(defval = 2022, title = "Year",   group="Backtest Params",    inline="stop",     minval = 1970)
+
+start     = timestamp(fromYear, fromMonth, fromDay, 00, 00)        // backtest start window
+finish    = timestamp(thruYear, thruMonth, thruDay, 23, 59)        // backtest finish window
+window()  => time >= start and time <= finish ? true : false 
+
+//-----------------END USER INPUT------------------------------------------------------
+
+
+
+//-----------------MAs Calculation-----------------------------------------------------
+
+
+ema1 = ta.ema(close,fast_period)
+ema2 = ta.ema(ema1,fast_period)
+ema3 = ta.ema(ema2,fast_period)
+tema_f = (3*ema1)-(3*ema2)+ema3
+
+ema1_s = ta.ema(close,slow_period)
+ema2_s = ta.ema(ema1_s,slow_period)
+ema3_s = ta.ema(ema2_s,slow_period)
+tema_s = (3*ema1_s)-(3*ema2_s)+ema3_s
+
+
+
+
+//-----------------Buy & Sell conditions-----------------------------------------------
+crossover = ta.crossover(tema_f,tema_s)
+crossunder = ta.crossunder(tema_f,tema_s)
+
+
+
+
+
+
+//------------TakeProfit and Stoploss--------------------------------------------------
+
+entryPrice = close
+
+stoploss = 0.
+maximumRisk = 0.01 * stoploss_percentage
+if use_stoploss
+    if SLTP_type == "%"
+        stoploss := entryPrice-(entryPrice*maximumRisk)
+    else if SLTP_type == "ATR"
+        stoploss := entryPrice - ta.atr(math.max(math.round(stoploss_percentage),1))*multi_stoploss
+        
+takeprofit = 0. 
+activation_percentage = 0.01 * activation
+if use_takeProfit
+    if SLTP_type == "%"
+        takeprofit := entryPrice+(entryPrice*activation_percentage)
+    else if SLTP_type == "ATR"
+        takeprofit := entryPrice + ta.atr(math.max(math.round(activation),1))*multi_takeprofit
+
+//------------End TakeProfit and Stoploss----------------------------------------------
+
+
+
+
+//------------Position size------------------------------------------------------------
+position_size = 0.
+sldist = entryPrice - stoploss
+slper = sldist / entryPrice * 100
+
+
+position_size := (strategy.equity * risk) / slper
+if position_size > strategy.equity
+    position_size := strategy.equity
+contract_amt = position_size/close
+
+
+plot(contract_amt*100,title="amt*100")
+plot(position_size,title="positionSize",color=color.white,linewidth=2,display=display.all)  
+plot(strategy.equity,title="Equity",color=color.red,linewidth = 1)
+
+//------------End Position size--------------------------------------------------------
+
+
+
+
+if use_avoidDownTrend 
+    if crossover and window() and not ta.falling(ema_high,downTrend_lookback_period)
+        if strategy.opentrades == 0
+            strategy.entry("Buy", strategy.long,qty = contract_amt)
+        
+        if use_stoploss and use_takeProfit
+            strategy.exit('Buy',stop=stoploss, trail_price=takeprofit, trail_offset=100, comment='Take Profit and stoploss')
+        else if use_stoploss
+            strategy.exit("Buy",stop=stoploss,comment = "Exit stoploss")
+        else if use_takeProfit
+            strategy.exit('Buy',trail_price=takeprofit, trail_offset=100, comment='Take Profit')
+else
+    if crossover and window()
+        if strategy.opentrades == 0
+            strategy.entry("Buy", strategy.long,qty = contract_amt)
+        
+        if use_stoploss and use_takeProfit
+            strategy.exit('Buy',stop=stoploss, trail_price=takeprofit, trail_offset=100, comment='Take Profit and stoploss')
+        else if use_stoploss
+            strategy.exit("Buy",stop=stoploss,comment = "Exit stoploss")
+        else if use_takeProfit
+            strategy.exit('Buy',trail_price=takeprofit, trail_offset=100, comment='Take Profit')
+            
+if crossunder and window()
+    strategy.close("Buy")
+    
+    
+plot(stoploss,title="stoploss",display=display.all)
+plot(takeprofit,title="takeprofit",display=display.all)
+plot(tema_f,title="TEMA fast",color=color.green)
+plot(tema_s,title="TEMA slow",color = color.red)

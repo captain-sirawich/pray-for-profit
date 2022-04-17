@@ -1,0 +1,239 @@
+// This source code is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
+// © sirawich3000
+
+//@version=5
+strategy('test cdc', overlay=true, currency=currency.USD, initial_capital=10000, default_qty_type=strategy.percent_of_equity, default_qty_value=100, commission_type=strategy.commission.percent, commission_value=0.1)
+
+
+// Define User Input Variables
+
+xsrc = input(title='Source Data', defval=close)
+xprd1 = input(title='Fast EMA period', defval=12)
+xprd2 = input(title='Slow EMA period', defval=26)
+xsmooth = input(title='Smoothing period (1 = no smoothing)', defval=1)
+fillSW = input(title='Paint Bar Colors', defval=true)
+fastSW = input(title='Show fast moving average line', defval=true)
+slowSW = input(title='Show slow moving average line', defval=true)
+labelSwitch = input(title='Turn on assistive text', defval=true)
+plotSigsw = input(title='Plot Buy/Sell Signals? ', defval=true)
+plotRibsw = input(title='Plot Buy/Sell Ribbon', defval=false)
+plotRibbonPos = input.string(title='Ribbon Position', options=['Top', 'Bottom'], defval='Top')
+
+xfixtf = input(title='** Use Fixed time frame Mode (advanced) **', defval=false)
+xtf = input.timeframe(title='** Fix chart to which time frame ? **)', defval='D')
+
+plotSig2sw = input(title='Plot momentum based Buy/Sell Signals? ', defval=false)
+plotSig2lv = input.int(title='Set signal threshold (higher = stricter)', defval=1, minval=0, maxval=1)
+
+
+//-----------------Trend Check-----------------
+use_avoidDownTrend = input.bool(defval = true, title="Avoid down trend", group = "Trend Check Params")
+downTrend_lookback_period = input.int(defval = 5, title="Down Trend Look Back Period", group = "Trend Check Params")
+res = input.timeframe(defval = "60", title="Trend Check resolution", group = "Trend Check Params")
+s = request.security("BTCUSDT", res, close)
+high_timeframe_period = input.int(defval = 77, title="EMA of Trend Check", group = "Trend Check Params")
+ema_high = ta.ema(s,high_timeframe_period)
+plot(ema_high,color = color.white, linewidth = 2)
+
+
+//-----------------Account Risk----------------
+risk = input.float(defval=2.,step=0.1,title='Risk percentage', group="Account Risk",minval=0,inline='risk')
+
+
+//-----------------Stoploss and Takeprofit-----------------
+SLTP_type = input.string(defval="ATR",options=["%","ATR"],title="Risk Type",group="Stoploss & Takeprofit")
+use_stoploss = input.bool(defval = false, title="Use stoploss", group = "Stoploss & Takeprofit")
+stoploss_percentage = input.int(defval=4, title='Percent Stoploss', minval=1, maxval=100, group = "Stoploss & Takeprofit")
+multi_stoploss = input.float(defval = 3.1,step = 0.1 , title="ATR Multiplier", group = "Stoploss & Takeprofit",tooltip="Value used when select ATR as a stoploss type")
+
+use_takeProfit = input.bool(defval = true, title="Use Take Profit", group = "Stoploss & Takeprofit")
+activation = input.int(defval=5, title='Percent Take Profit', minval=1, maxval=100, group = "Stoploss & Takeprofit")
+multi_takeprofit = input.float(defval = 4.3 ,step = 0.1, title="ATR Multiplier", group = "Stoploss & Takeprofit",tooltip="Value used when select ATR as a stoploss type")
+
+
+//-----------------Backtest Params-----------------
+fromMonth = input.int(defval=3, title='From Month', minval=1, maxval=12)
+fromDay = input.int(defval=1, title='From Day', minval=1, maxval=31)
+fromYear = input.int(defval=2021, title='From Year', minval=1970)
+thruMonth = input.int(defval=12, title='Thru Month', minval=1, maxval=12)
+thruDay = input.int(defval=31, title='Thru Day', minval=1, maxval=31)
+thruYear = input.int(defval=2021, title='Thru Year', minval=1970)
+
+start = timestamp(fromYear, fromMonth, fromDay, 00, 00)  // backtest start window
+finish = timestamp(thruYear, thruMonth, thruDay, 23, 59)  // backtest finish window
+window() =>
+    time >= start and time <= finish ? true : false
+//****************************************************************************//
+
+//------------TakeProfit and Stoploss--------------------------------------------------
+
+entryPrice = close
+
+stoploss = 0.
+maximumRisk = 0.01 * stoploss_percentage
+if use_stoploss
+    if SLTP_type == "%"
+        stoploss := entryPrice-(entryPrice*maximumRisk)
+    else if SLTP_type == "ATR"
+        stoploss := entryPrice - ta.atr(math.max(math.round(stoploss_percentage),1))*multi_stoploss
+        
+takeprofit = 0. 
+activation_percentage = 0.01 * activation
+if use_takeProfit
+    if SLTP_type == "%"
+        takeprofit := entryPrice+(entryPrice*activation_percentage)
+    else if SLTP_type == "ATR"
+        takeprofit := entryPrice + ta.atr(math.max(math.round(activation),1))*multi_takeprofit
+
+//------------End TakeProfit and Stoploss----------------------------------------------
+
+
+
+
+//------------Position size------------------------------------------------------------
+position_size = 0.
+sldist = entryPrice - stoploss
+slper = sldist / entryPrice * 100
+
+
+position_size := (strategy.equity * risk) / slper
+if position_size > strategy.equity
+    position_size := strategy.equity
+contract_amt = position_size/close
+
+
+plot(contract_amt*100,title="amt*100")
+plot(position_size,title="positionSize",color=color.white,linewidth=2,display=display.all)  
+plot(strategy.equity,title="Equity",color=color.red,linewidth = 1)
+
+//------------End Position size--------------------------------------------------------
+
+
+//****************************************************************************//
+//Calculate Indicators
+
+xPrice = ta.ema(xsrc, xsmooth)
+FastMA = xfixtf ? ta.ema(request.security(syminfo.tickerid, xtf, ta.ema(xsrc, xprd1), gaps=barmerge.gaps_off, lookahead=barmerge.lookahead_on), xsmooth) : ta.ema(xPrice, xprd1)
+SlowMA = xfixtf ? ta.ema(request.security(syminfo.tickerid, xtf, ta.ema(xsrc, xprd2), gaps=barmerge.gaps_off, lookahead=barmerge.lookahead_on), xsmooth) : ta.ema(xPrice, xprd2)
+
+Bull = FastMA > SlowMA
+Bear = FastMA < SlowMA
+
+//****************************************************************************//
+// Define Color Zones
+
+Green = Bull and xPrice > FastMA  // Buy
+Blue = Bear and xPrice > FastMA and xPrice > SlowMA  //Pre Buy 2
+LBlue = Bear and xPrice > FastMA and xPrice < SlowMA  //Pre Buy 1
+
+Red = Bear and xPrice < FastMA  // Sell
+Orange = Bull and xPrice < FastMA and xPrice < SlowMA  // Pre Sell 2
+Yellow = Bull and xPrice < FastMA and xPrice > SlowMA  // Pre Sell 1
+
+//****************************************************************************//
+// Display color on chart
+
+
+bColor = Green ? color.green : Blue ? color.blue : LBlue ? color.aqua : Red ? color.red : Orange ? color.orange : Yellow ? color.yellow : color.black
+barcolor(color=fillSW ? bColor : na)
+
+//****************************************************************************//
+// Display MA lines
+
+FastL = plot(fastSW ? FastMA : na, 'Fast EMA', color=color.new(color.red, 0))
+SlowL = plot(slowSW ? SlowMA : na, 'Slow EMA', color=color.new(color.blue, 0))
+fillcolor = Bull ? color.green : Bear ? color.red : color.black
+fill(FastL, SlowL, fillcolor, transp=90)
+
+//****************************************************************************//
+// Define Buy and Sell condition
+// This is only for thebasic usage of CDC Actionzone (EMA Crossover) 
+// ie. Buy on first green bar and sell on first red bar
+
+buycond = Green and Green[1] == 0
+sellcond = Red and Red[1] == 0
+
+bullish = ta.barssince(buycond) < ta.barssince(sellcond)
+bearish = ta.barssince(sellcond) < ta.barssince(buycond)
+
+buy = bearish[1] and buycond
+sell = bullish[1] and sellcond
+
+bColor_BullBear = bullish ? color.green : bearish ? color.red : color.black
+
+//****************************************************************************//
+// Plot Buy and Sell point on chart
+
+plotshape(plotSigsw ? buy : na, style=shape.circle, title='Buy Signal', location=location.belowbar, color=color.new(color.green, 0))
+plotshape(plotSigsw ? sell : na, style=shape.circle, title='Sell Signal', location=location.abovebar, color=color.new(color.red, 0))
+
+// Display Buy/Sell Ribbon
+
+
+plotshape(plotRibsw ? plotRibbonPos == 'Top' ? close : na : na, style=shape.square, title='Buy/Sell Ribbon', location=location.top, color=bColor_BullBear)
+
+plotshape(plotRibsw ? plotRibbonPos == 'Bottom' ? close : na : na, style=shape.square, title='Buy/Sell Ribbon', location=location.bottom, color=bColor_BullBear)
+
+
+//****************************************************************************//
+// Label
+
+labelstyle = close > SlowMA ? label.style_label_down : label.style_label_up
+labelyloc = close > SlowMA ? yloc.abovebar : yloc.belowbar
+labeltcolor = buy ? color.black : sell ? color.white : close > close[1] ? color.green : color.red
+labelbgcolor = buy ? color.green : sell ? color.red : color.silver
+labeltext = buy ? 'BUY next bar\n' : sell ? 'SELL next bar\n' : ' '
+trendText = bullish ? 'bullish' : bearish ? 'bearish' : 'sideways'
+
+
+l1 = label.new(bar_index, na, text=labeltext + syminfo.ticker + ' ' + str.tostring(close) + ' ' + syminfo.currency + '\n currently in a ' + trendText + ' trend \n', color=labelbgcolor, textcolor=labeltcolor, yloc=labelyloc, style=labelstyle)
+
+label.delete(labelSwitch ? l1[1] : l1)
+
+// fixed inputs //
+
+// smoothK = 3
+// smoothD = 3
+// RSIlen = 14
+// STOlen = 14
+// SRsrc = close
+// OSlevel = 30
+// OBlevel = 70
+
+// crossover_1 = ta.crossover(k, d)
+// crossover_2 = ta.crossover(k, d)
+// iff_1 = d > OSlevel and crossover_2 ? 1 : 0
+// iff_2 = d < OSlevel and crossover_1 ? 2 : iff_1
+// storsiBuySig = bullish ? iff_2 : 0
+
+// crossunder_1 = ta.crossunder(k, d)
+// crossunder_2 = ta.crossunder(k, d)
+// iff_3 = d < OBlevel and crossunder_2 ? 1 : 0
+// iff_4 = d > OBlevel and crossunder_1 ? 2 : iff_3
+// storsiSellSig = bearish ? iff_4 : 0
+
+// plotshape(plotSig2sw ? storsiBuySig > plotSig2lv ? storsiBuySig : na : na, 'Buy more signals', style=shape.triangleup, location=location.belowbar, color=color.new(color.teal, 0))
+// plotshape(plotSig2sw ? storsiSellSig > plotSig2lv ? storsiSellSig : na : na, 'Sell more signals', style=shape.triangledown, location=location.abovebar, color=color.new(color.orange, 0))
+
+if use_avoidDownTrend
+    if buy and window() and not ta.falling(ema_high, downTrend_lookback_period)
+        strategy.entry('Buy', strategy.long, comment='Buy CDC')
+        if use_stoploss and use_takeProfit
+            strategy.exit('Buy', stop=stoploss, trail_price=takeprofit, trail_offset=100, comment='Take Profit & Stop Loss')
+        else if use_takeProfit
+            strategy.exit('Buy', trail_price=takeprofit, trail_offset=100, comment='Take Profit')
+        else if use_stoploss
+            strategy.exit('Buy', stop=stoploss, comment='Stop Loss')
+else
+    if buy and window()
+        strategy.entry('Buy', strategy.long, comment='Buy CDC')
+        if use_stoploss and use_takeProfit
+            strategy.exit('Buy', stop=stoploss, trail_price=takeprofit, trail_offset=100, comment='Take Profit & Stop Loss')
+        else if use_takeProfit
+            strategy.exit('Buy', trail_price=takeprofit, trail_offset=100, comment='Take Profit')
+        else if use_stoploss
+            strategy.exit('Buy', stop=stoploss, comment='Stop Loss')
+
+
+if sell and window()
+    strategy.close('Buy', comment='Close CDC')
